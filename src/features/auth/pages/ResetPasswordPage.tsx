@@ -4,6 +4,7 @@ import { resetPassword } from "../api/auth";
 import { ApiRequestError } from "../../../shared/api/types";
 import { PASSWORD_RULES, passwordIsValid } from "../model/passwordRules";
 import ThemeToggle from "../../../shared/components/ThemeToggle";
+import ActionBlocker from "../../../shared/components/ActionBlocker";
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export default function ResetPasswordPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     setLoading(true);
     try {
@@ -44,7 +46,7 @@ export default function ResetPasswordPage() {
       <div className="bg-grid" aria-hidden="true" />
       <div className="orb orb-1" aria-hidden="true" />
       <div className="orb orb-2" aria-hidden="true" />
-      <div className="auth-card rise">
+      <div className={loading ? "auth-card rise is-action-busy" : "auth-card rise"} aria-busy={loading}>
         <div className="brand">
           <span className="brand-logo">▶</span>
           <span className="brand-name">VirtualGameCard</span>
@@ -65,6 +67,7 @@ export default function ResetPasswordPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
+            <fieldset disabled={loading}>
             <label className="field">
               <span>Nova senha</span>
               <input
@@ -115,8 +118,10 @@ export default function ResetPasswordPage() {
             <button type="submit" className="btn-primary" disabled={loading || !valid}>
               {loading ? "Salvando…" : "Redefinir senha"}
             </button>
+            </fieldset>
           </form>
         )}
+        <ActionBlocker active={loading} label="Salvando nova senha…" />
       </div>
     </main>
   );

@@ -5646,7 +5646,12 @@ html[data-theme="dark"] .modal-backdrop.password-modal-backdrop { background: rg
 .verification-sent-modal > p strong { color: var(--text); }
 .verification-tip { display: flex; align-items: center; gap: 9px; width: 100%; margin-top: 17px; padding: 11px 12px; border: 1px solid rgba(229,154,65,.16); border-radius: 12px; color: var(--text-dim); background: rgba(255,214,151,.2); text-align: left; font-size: .6rem; line-height: 1.45; }
 .verification-tip .icon { width: 17px; flex: 0 0 auto; color: #d88a36; }
-.verification-sent-modal .btn-primary { width: 100%; margin-top: 14px; }
+.verification-actions { display: grid; width: 100%; gap: 9px; margin-top: 14px; }
+.verification-sent-modal .btn-primary { width: 100%; }
+.simulation-confirm-button { display: flex; min-height: 46px; align-items: center; justify-content: center; gap: 7px; border: 1px solid rgba(229,154,65,.26); border-radius: 12px; color: #8c4c14; background: linear-gradient(135deg, rgba(255,214,151,.72), rgba(232,186,230,.58)); box-shadow: 0 9px 22px rgba(189,112,56,.1); font: inherit; font-size: .8rem; font-weight: 900; cursor: pointer; transition: transform .18s, border-color .18s, box-shadow .18s; }
+.simulation-confirm-button:hover:not(:disabled) { border-color: rgba(229,154,65,.48); transform: translateY(-1px); box-shadow: 0 12px 27px rgba(189,112,56,.16); }
+.simulation-confirm-button:disabled { cursor: wait; opacity: .72; }
+.simulation-confirm-button .icon { width: 16px; }
 html[data-theme="dark"] .password-modal { border-color: rgba(213,187,241,.14); background: rgba(39,31,52,.98); box-shadow: 0 35px 90px rgba(3,2,8,.5); }
 html[data-theme="dark"] .password-field > div { border-color: rgba(213,187,241,.12); background: rgba(17,14,27,.35); }
 html[data-theme="dark"] .password-field > div:focus-within { border-color: #9f7acd; background: rgba(17,14,27,.6); }
@@ -5654,7 +5659,71 @@ html[data-theme="dark"] .password-strength-card { border-color: rgba(91,186,158,
 html[data-theme="dark"] .password-modal-actions .btn-secondary { border-color: rgba(190,157,230,.27); color: #ddc4fa; background: linear-gradient(135deg, rgba(104,76,139,.38), rgba(51,97,91,.28)); }
 html[data-theme="dark"] .password-modal-actions .btn-primary:disabled { border-color: rgba(190,157,230,.12); color: rgba(225,208,242,.55); background: rgba(117,82,149,.5); }
 html[data-theme="dark"] .verification-tip { border-color: rgba(229,154,65,.15); background: rgba(126,78,26,.18); }
+html[data-theme="dark"] .simulation-confirm-button { border-color: rgba(229,154,65,.22); color: #ffd49d; background: linear-gradient(135deg, rgba(126,78,26,.28), rgba(111,75,142,.32)); }
 @media (max-width: 560px) { .password-modal-backdrop { padding: 10px; } .password-modal { padding: 22px 15px 18px; border-radius: 20px; } .change-password-form { grid-template-columns: 1fr; } .password-field:first-child, .password-strength-card, .password-form-error, .password-modal-actions, .password-privacy { grid-column: 1; } .password-strength-card ul { grid-template-columns: 1fr; } .password-modal-actions { grid-template-columns: 1fr; } }
+
+/* Bloqueio de ações críticas */
+fieldset {
+  display: contents;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.is-action-busy {
+  position: relative;
+}
+
+.is-action-busy > :not(.action-blocker) {
+  pointer-events: none;
+}
+
+.action-blocker {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 20px;
+  border-radius: inherit;
+  color: var(--text);
+  text-align: center;
+  background:
+    radial-gradient(circle at 20% 16%, rgba(181, 226, 218, .58), transparent 32%),
+    radial-gradient(circle at 82% 18%, rgba(224, 195, 246, .58), transparent 30%),
+    rgba(255, 253, 255, .72);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
+  backdrop-filter: blur(8px);
+  cursor: wait;
+}
+
+.action-blocker strong {
+  max-width: 220px;
+  font-size: .82rem;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.action-blocker .spinner {
+  width: 26px;
+  height: 26px;
+}
+
+.auth-card .action-blocker,
+.password-modal .action-blocker {
+  border-radius: inherit;
+}
+
+html[data-theme="dark"] .action-blocker {
+  background:
+    radial-gradient(circle at 20% 16%, rgba(91, 186, 158, .26), transparent 34%),
+    radial-gradient(circle at 82% 18%, rgba(159, 122, 205, .28), transparent 32%),
+    rgba(22, 17, 31, .74);
+  box-shadow: inset 0 0 0 1px rgba(213,187,241,.1);
+}
 
 .route-loading { display: grid; min-height: 100svh; place-items: center; align-content: center; gap: 14px; color: var(--text-dim); background: var(--bg); }
 .route-loading p { margin: 0; font-size: .78rem; }

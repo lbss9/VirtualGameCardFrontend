@@ -6,6 +6,7 @@ import { PASSWORD_RULES, passwordIsValid } from "../model/passwordRules";
 import { saveSession } from "../model/storage";
 import Icon from "../../../shared/components/Icon";
 import ThemeToggle from "../../../shared/components/ThemeToggle";
+import ActionBlocker from "../../../shared/components/ActionBlocker";
 
 type Tab = "login" | "register";
 
@@ -25,6 +26,7 @@ export default function AuthPage() {
     email.length > 0 && passwordIsValid(password) && passwordsMatch;
 
   function switchTab(next: Tab) {
+    if (loading) return;
     setTab(next);
     setError(null);
     setConfirm("");
@@ -32,6 +34,7 @@ export default function AuthPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     setLoading(true);
     try {
@@ -98,7 +101,7 @@ export default function AuthPage() {
       </section>
 
       {/* ===== Formulário ===== */}
-      <div className="auth-card rise">
+      <div className={loading ? "auth-card rise is-action-busy" : "auth-card rise"} aria-busy={loading}>
         <div className="brand">
           <span className="brand-logo"><span>V</span></span>
           <span className="brand-name">VirtualGameCard</span>
@@ -116,6 +119,7 @@ export default function AuthPage() {
             className={tab === "login" ? "tab active" : "tab"}
             onClick={() => switchTab("login")}
             type="button"
+            disabled={loading}
           >
             Entrar
           </button>
@@ -125,12 +129,14 @@ export default function AuthPage() {
             className={tab === "register" ? "tab active" : "tab"}
             onClick={() => switchTab("register")}
             type="button"
+            disabled={loading}
           >
             Criar conta
           </button>
         </div>
 
         <form onSubmit={handleSubmit} key={tab} className="form-swap">
+          <fieldset disabled={loading}>
           <label className="field">
             <span>E-mail</span>
             <input
@@ -211,13 +217,15 @@ export default function AuthPage() {
               "Criar conta"
             )}
           </button>
+          </fieldset>
         </form>
 
         {tab === "login" && (
-          <Link to="/esqueci-senha" className="link-muted">
+          <Link to="/esqueci-senha" className="link-muted" aria-disabled={loading} onClick={(event) => loading && event.preventDefault()}>
             Esqueci minha senha
           </Link>
         )}
+        <ActionBlocker active={loading} label={tab === "login" ? "Entrando com segurança…" : "Criando sua conta…"} />
       </div>
     </main>
   );

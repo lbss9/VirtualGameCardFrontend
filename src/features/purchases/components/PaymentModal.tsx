@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { purchaseCard } from "../api/purchases";
 import { ApiRequestError, type PurchaseDetail } from "../../../shared/api/types";
@@ -56,6 +56,7 @@ export default function PaymentModal({ amount, platform, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
   const [pixSeconds, setPixSeconds] = useState(10 * 60);
+  const payingRef = useRef(false);
   const pixCode = `PIX-DEMO-VIRTUALGAMECARD-${platform.toUpperCase()}-R${amount}-NAO-PAGAVEL`;
 
   useEscapeKey({ mode: "block" });
@@ -68,6 +69,8 @@ export default function PaymentModal({ amount, platform, onClose }: Props) {
   }, [pixSeconds, step]);
 
   async function handlePay() {
+    if (payingRef.current || step === "processing") return;
+    payingRef.current = true;
     setError(null);
     setStep("processing");
     const start = Date.now();
@@ -87,6 +90,8 @@ export default function PaymentModal({ amount, platform, onClose }: Props) {
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : "Falha no pagamento. Tente novamente.");
       setStep(method);
+    } finally {
+      payingRef.current = false;
     }
   }
 

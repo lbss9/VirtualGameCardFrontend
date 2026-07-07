@@ -133,6 +133,12 @@ export async function mockSendEmailVerification(): Promise<MessageResponse> {
   return { message: "Enviamos um novo link de confirmação para o seu e-mail." };
 }
 
+export async function mockSimulateEmailVerification(): Promise<MeResponse> {
+  await wait(520);
+  localStorage.setItem(EMAIL_VERIFIED_KEY, "true");
+  return mockMe();
+}
+
 export async function mockPurchaseCard(
   amount: number,
   platform: string,

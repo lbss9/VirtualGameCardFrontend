@@ -4,6 +4,7 @@ import Icon from "../../../shared/components/Icon";
 import { createSupportTicket } from "../api/support";
 import { ApiRequestError } from "../../../shared/api/types";
 import { addNotification } from "../../../shared/notifications/storage";
+import ActionBlocker from "../../../shared/components/ActionBlocker";
 
 const FAQS = [
   ["Como recebo o código do meu card?", "O código é liberado logo após a aprovação e fica disponível em Minhas Compras. Use o ícone de olho para revelá-lo."],
@@ -19,7 +20,7 @@ const CATEGORIES = [
   { id: "other", label: "Outro assunto", icon: "help-circle" },
 ] as const;
 
-function CategorySelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function CategorySelect({ value, onChange, disabled = false }: { value: string; onChange: (value: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = CATEGORIES.find((item) => item.id === value) ?? CATEGORIES[0];
@@ -42,7 +43,7 @@ function CategorySelect({ value, onChange }: { value: string; onChange: (value: 
 
   return (
     <div className="category-select" ref={ref}>
-      <button type="button" className={open ? "category-trigger open" : "category-trigger"} onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-controls="support-category-options">
+      <button type="button" className={open ? "category-trigger open" : "category-trigger"} onClick={() => !disabled && setOpen((current) => !current)} aria-expanded={open} aria-controls="support-category-options" disabled={disabled}>
         <span><Icon name={selected.icon} /> {selected.label}</span>
         <Icon name="chevron-down" />
       </button>
@@ -71,6 +72,7 @@ export default function HelpPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError(null);
     try {
@@ -110,20 +112,23 @@ export default function HelpPage() {
             </div>
           </section>
 
-          <section className="support-card rise">
+          <section className={loading ? "support-card rise is-action-busy" : "support-card rise"} aria-busy={loading}>
             <div className="section-heading"><span><Icon name="help-circle" /></span><div><h2>Falar com o suporte</h2><p>Respondemos assim que possível.</p></div></div>
             {ticket ? (
               <div className="ticket-success"><span><Icon name="check" /></span><h3>Chamado aberto!</h3><p>Seu protocolo é <strong>#{ticket}</strong>. Avisaremos nas notificações quando houver novidade.</p><button type="button" className="btn-ghost" onClick={() => setTicket(null)}>Abrir outro chamado</button></div>
             ) : (
               <form onSubmit={submit} className="support-form">
+                <fieldset disabled={loading}>
                 <label><span>Assunto</span><input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Ex.: código não foi aceito" required minLength={4} /></label>
-                <div className="support-form-field"><span>Categoria</span><CategorySelect value={category} onChange={setCategory} /></div>
+                <div className="support-form-field"><span>Categoria</span><CategorySelect value={category} onChange={setCategory} disabled={loading} /></div>
                 <label><span>Como podemos ajudar?</span><textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Conte os detalhes e, se houver, informe o número do pedido." required minLength={10} rows={5} /></label>
                 {error && <p className="error" role="alert">{error}</p>}
                 <button type="submit" className="btn-primary" disabled={loading}>{loading ? <span className="spinner" /> : <><Icon name="sparkles" /> Enviar para o suporte</>}</button>
                 <p className="support-note"><Icon name="shield" /> Nunca envie sua senha ou o código completo do card.</p>
+                </fieldset>
               </form>
             )}
+            <ActionBlocker active={loading} label="Abrindo chamado…" />
           </section>
         </div>
       </main>

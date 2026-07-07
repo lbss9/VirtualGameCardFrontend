@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getMe, sendEmailVerification } from "../api/me";
+import { getMe, sendEmailVerification, simulateEmailVerification } from "../api/me";
 import { getPurchases } from "../../purchases/api/purchases";
 import { ApiRequestError, type MeResponse, type Purchase } from "../../../shared/api/types";
 import AppHeader from "../../../shared/components/AppHeader";
@@ -11,6 +11,7 @@ import { PASSWORD_RULES, passwordIsValid } from "../../auth/model/passwordRules"
 import { addNotification } from "../../../shared/notifications/storage";
 import { useEscapeKey } from "../../../shared/hooks/useEscapeKey";
 import { useBodyScrollLock } from "../../../shared/hooks/useBodyScrollLock";
+import ActionBlocker from "../../../shared/components/ActionBlocker";
 
 function memberSince(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
@@ -49,6 +50,7 @@ export default function ProfilePage() {
   }
 
   async function requestVerification() {
+    if (verificationLoading) return;
     setVerificationLoading(true);
     setVerificationError(null);
     try {
@@ -97,7 +99,7 @@ export default function ProfilePage() {
             </section>
 
             <div className="profile-dashboard-grid">
-              <section className="profile-panel account-panel">
+              <section className={verificationLoading ? "profile-panel account-panel is-action-busy" : "profile-panel account-panel"} aria-busy={verificationLoading}>
                 <div className="profile-panel-heading"><div><span className="eyebrow"><Icon name="user" /> Sua conta</span><h2>Informações pessoais</h2><p>Dados usados para identificar e proteger seu acesso.</p></div></div>
 
                 <dl className="account-details">
@@ -112,6 +114,7 @@ export default function ProfilePage() {
                   <div><strong>{me.emailVerified ? "Conta protegida" : "Falta confirmar seu e-mail"}</strong><p>{me.emailVerified ? "Sua sessão está autenticada e o e-mail foi verificado." : "Confirme seu e-mail para aumentar a segurança da conta."}</p></div>
                   {me.emailVerified ? <button type="button" onClick={() => setPasswordOpen(true)}>Alterar senha <Icon name="chevron-right" /></button> : <button type="button" onClick={requestVerification} disabled={verificationLoading}>Enviar confirmação <Icon name="chevron-right" /></button>}
                 </div>
+                <ActionBlocker active={verificationLoading} label="Enviando confirmação…" />
               </section>
 
               <aside className="profile-aside">
@@ -141,16 +144,47 @@ export default function ProfilePage() {
         )}
       </main>
       {passwordOpen && <ChangePasswordModal onClose={() => setPasswordOpen(false)} />}
-      {verificationOpen && me && <VerificationSentModal email={me.email} onClose={() => setVerificationOpen(false)} />}
+      {verificationOpen && me && (
+        <VerificationSentModal
+          email={me.email}
+          onClose={() => setVerificationOpen(false)}
+          onVerified={(profile) => {
+            setMe(profile);
+            setVerificationOpen(false);
+            addNotification({
+              kind: "security",
+              title: "E-mail confirmado",
+              message: "Sua conta foi marcada como verificada nesta simulação.",
+            });
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function VerificationSentModal({ email, onClose }: { email: string; onClose: () => void }) {
-  useEscapeKey({ onEscape: onClose });
+function VerificationSentModal({ email, onClose, onVerified }: { email: string; onClose: () => void; onVerified: (profile: MeResponse) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEscapeKey({ onEscape: () => !loading && onClose() });
   useBodyScrollLock();
 
-  return <div className="modal-backdrop password-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="password-modal verification-sent-modal rise" role="dialog" aria-modal="true" aria-labelledby="verification-sent-title"><button className="modal-close" type="button" onClick={onClose} aria-label="Fechar"><span aria-hidden="true">×</span></button><div className="verification-mail-icon"><Icon name="sparkles" /><span>✉</span></div><span className="eyebrow">Confira sua caixa de entrada</span><h2 id="verification-sent-title">Confirmação enviada!</h2><p>Enviamos um link para <strong>{email}</strong>. Abra a mensagem e confirme seu e-mail para deixar a conta totalmente protegida.</p><div className="verification-tip"><Icon name="help-circle" /><span>Não encontrou? Confira também as pastas de spam e promoções.</span></div><button type="button" className="btn-primary" onClick={onClose}>Entendi</button></section></div>;
+  async function simulate() {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const profile = await simulateEmailVerification();
+      onVerified(profile);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível confirmar a conta agora.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return <div className="modal-backdrop password-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !loading && onClose()}><section className={loading ? "password-modal verification-sent-modal rise is-action-busy" : "password-modal verification-sent-modal rise"} role="dialog" aria-modal="true" aria-labelledby="verification-sent-title" aria-busy={loading}><button className="modal-close" type="button" onClick={onClose} aria-label="Fechar" disabled={loading}><span aria-hidden="true">×</span></button><div className="verification-mail-icon"><Icon name="sparkles" /><span>✉</span></div><span className="eyebrow">Confira sua caixa de entrada</span><h2 id="verification-sent-title">Confirmação enviada!</h2><p>Enviamos um link para <strong>{email}</strong>. Abra a mensagem e confirme seu e-mail para deixar a conta totalmente protegida.</p><div className="verification-tip"><Icon name="help-circle" /><span>Não encontrou? Confira também as pastas de spam e promoções.</span></div>{error && <p className="verification-inline-error shake" role="alert">{error}</p>}<div className="verification-actions"><button type="button" className="btn-secondary simulation-confirm-button" onClick={simulate} disabled={loading}><Icon name="sparkles" /> Simular confirmação</button><button type="button" className="btn-primary" onClick={onClose} disabled={loading}>Entendi</button></div><ActionBlocker active={loading} label="Confirmando conta…" /></section></div>;
 }
 
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
@@ -167,7 +201,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || loading) return;
     setLoading(true);
     setError(null);
     try {
@@ -201,17 +235,20 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   ];
 
   return (
-    <div className="modal-backdrop password-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="password-modal rise" role="dialog" aria-modal="true" aria-labelledby="change-password-title">
-        <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar"><span aria-hidden="true">×</span></button>
+    <div className="modal-backdrop password-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !loading && onClose()}>
+      <section className={loading ? "password-modal rise is-action-busy" : "password-modal rise"} role="dialog" aria-modal="true" aria-labelledby="change-password-title" aria-busy={loading}>
+        <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar" disabled={loading}><span aria-hidden="true">×</span></button>
         <header className="password-modal-header"><span><Icon name="key" /></span><div><span className="eyebrow">Segurança da conta</span><h2 id="change-password-title">Crie uma nova senha</h2><p>Confirme sua identidade e escolha uma senha forte.</p></div></header>
         <form onSubmit={submit} className="change-password-form">
+          <fieldset disabled={loading}>
           {fields.map((field) => <label className="password-field" key={field.key}><span>{field.label}</span><div><Icon name="lock" /><input type={visible[field.key] ? "text" : "password"} value={field.value} onChange={(event) => field.set(event.target.value)} autoComplete={field.autoComplete} required /><button type="button" onClick={() => setVisible((state) => ({ ...state, [field.key]: !state[field.key] }))} aria-label={visible[field.key] ? `Ocultar ${field.label.toLowerCase()}` : `Mostrar ${field.label.toLowerCase()}`}><Icon name={visible[field.key] ? "eye-off" : "eye"} /></button></div></label>)}
           <div className="password-strength-card"><div className="password-strength-heading"><span>Requisitos da senha</span><small>{PASSWORD_RULES.filter((rule) => rule.test(newPassword)).length} de {PASSWORD_RULES.length}</small></div><ul>{PASSWORD_RULES.map((rule) => { const ok = rule.test(newPassword); return <li className={ok ? "ok" : ""} key={rule.label}><span>{ok ? "✓" : "•"}</span>{rule.label}</li>; })}<li className={confirmPassword.length > 0 && matches ? "ok" : ""}><span>{confirmPassword.length > 0 && matches ? "✓" : "•"}</span>As senhas coincidem</li><li className={newPassword.length > 0 && currentPassword !== newPassword ? "ok" : ""}><span>{newPassword.length > 0 && currentPassword !== newPassword ? "✓" : "•"}</span>Diferente da senha atual</li></ul></div>
           {error && <p className="password-form-error shake" role="alert"><Icon name="shield" /> {error}</p>}
-          <div className="password-modal-actions"><button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="btn-primary" disabled={!canSubmit || loading}>{loading ? <><span className="spinner" /> Alterando…</> : <><Icon name="shield" /> Alterar senha</>}</button></div>
+          <div className="password-modal-actions"><button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>Cancelar</button><button type="submit" className="btn-primary" disabled={!canSubmit || loading}>{loading ? <><span className="spinner" /> Alterando…</> : <><Icon name="shield" /> Alterar senha</>}</button></div>
           <p className="password-privacy"><Icon name="lock" /> Sua senha nunca fica visível e é enviada de forma protegida.</p>
+          </fieldset>
         </form>
+        <ActionBlocker active={loading} label="Alterando senha…" />
       </section>
     </div>
   );
