@@ -5,6 +5,7 @@ import {
   mockGetPurchase,
   mockGetPurchases,
   mockPurchaseCard,
+  mockSimulatePurchaseApproval,
 } from "../../../shared/api/mock";
 
 /** Cria um pedido pendente; o código só existe após confirmação do provedor. */
@@ -36,4 +37,12 @@ export function getPurchases(
 export function getPurchase(id: string): Promise<PurchaseDetail> {
   if (USE_MOCKS) return mockGetPurchase(id);
   return request<PurchaseDetail>(`/api/purchases/${id}`, { auth: true });
+}
+
+export function simulatePurchaseApproval(id: string): Promise<PurchaseDetail> {
+  if (USE_MOCKS) return mockSimulatePurchaseApproval(id);
+  return request<PurchaseDetail>(`/api/purchases/${id}/simulate-approval`, {
+    method: "POST",
+    auth: true,
+  });
 }

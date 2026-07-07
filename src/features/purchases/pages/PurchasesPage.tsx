@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getPurchase, getPurchases } from "../api/purchases";
+import { getPurchase, getPurchases, simulatePurchaseApproval } from "../api/purchases";
 import {
   ApiRequestError,
   type PagedResult,
@@ -12,6 +12,7 @@ import Icon from "../../../shared/components/Icon";
 import { getPlatform } from "../../../shared/catalog/platforms";
 import { useEscapeKey } from "../../../shared/hooks/useEscapeKey";
 import { useBodyScrollLock } from "../../../shared/hooks/useBodyScrollLock";
+import ActionBlocker from "../../../shared/components/ActionBlocker";
 
 const PAGE_SIZES = [20, 50, 100];
 
@@ -26,6 +27,35 @@ function formatDate(iso: string): string {
 }
 
 const METHOD_LABEL: Record<string, string> = { pix: "PIX", card: "Cartão" };
+
+type PurchaseStatus = Purchase["status"];
+
+const STATUS_VIEW: Record<PurchaseStatus, { label: string; short: string; detail: string; tone: string }> = {
+  pending: {
+    label: "Pendente",
+    short: "Pendente",
+    detail: "Aguardando confirmação do pagamento",
+    tone: "pending",
+  },
+  approved: {
+    label: "Aprovado",
+    short: "Disponível",
+    detail: "Card disponível para resgate",
+    tone: "approved",
+  },
+  failed: {
+    label: "Falhou",
+    short: "Falhou",
+    detail: "Pagamento não aprovado",
+    tone: "failed",
+  },
+  canceled: {
+    label: "Cancelado",
+    short: "Cancelado",
+    detail: "Pedido cancelado",
+    tone: "canceled",
+  },
+};
 
 function Method({ value }: { value: string }) {
   const isPix = value === "pix";
@@ -43,15 +73,16 @@ const REDEEM_STEPS: Record<string, [string, string, string]> = {
 
 function PurchaseTile({ purchase, onOpen, index }: { purchase: Purchase; onOpen: () => void; index: number }) {
   const platform = getPlatform(purchase.platform);
+  const status = STATUS_VIEW[purchase.status];
   return (
     <li style={{ animationDelay: `${Math.min(index, 12) * 45}ms` }}>
-      <button type="button" className="purchase-tile" data-platform={platform.id} onClick={onOpen}>
+      <button type="button" className="purchase-tile" data-platform={platform.id} data-status={status.tone} onClick={onOpen}>
         <span className="purchase-art">
           <i className="purchase-art-glow" />
           <span className="purchase-art-top">
             <i className="platform-logo"><img src={platform.logo} alt="" /></i>
             <strong>{platform.shortName}</strong>
-            <em><span /> Disponível</em>
+            <em className={`purchase-status-pill status-${status.tone}`}><span /> {status.short}</em>
           </span>
           <span className="purchase-art-value"><small>R$</small>{purchase.amount}</span>
           <span className="purchase-art-bottom">
@@ -84,6 +115,8 @@ export default function PurchasesPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [simulationLoading, setSimulationLoading] = useState(false);
+  const [simulationError, setSimulationError] = useState<string | null>(null);
   const detailRequest = useRef(0);
 
   const load = useCallback(async (p: number, ps: number) => {
@@ -115,6 +148,7 @@ export default function PurchasesPage() {
     setDetailLoading(true);
     setShowCode(false);
     setCopied(false);
+    setSimulationError(null);
     try {
       const result = await getPurchase(id);
       if (detailRequest.current === requestId) setSelected(result);
@@ -130,12 +164,13 @@ export default function PurchasesPage() {
 
   const closeDetail = useCallback(() => {
     detailRequest.current += 1;
+    if (simulationLoading) return;
     setDetailOpen(false);
     setDetailLoading(false);
     setSelected(null);
-  }, []);
+  }, [simulationLoading]);
 
-  useEscapeKey({ enabled: detailOpen, onEscape: closeDetail });
+  useEscapeKey({ enabled: detailOpen && !simulationLoading, onEscape: closeDetail });
   useBodyScrollLock(detailOpen);
 
   async function handleCopy() {
@@ -143,6 +178,37 @@ export default function PurchasesPage() {
     await navigator.clipboard.writeText(selected.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
+  }
+
+  async function handleSimulateApproval() {
+    if (!selected || selected.status !== "pending" || simulationLoading) return;
+    setSimulationLoading(true);
+    setSimulationError(null);
+    try {
+      const approved = await simulatePurchaseApproval(selected.id);
+      setSelected(approved);
+      setShowCode(false);
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              items: current.items.map((item) =>
+                item.id === approved.id
+                  ? { ...item, status: approved.status }
+                  : item,
+              ),
+            }
+          : current,
+      );
+    } catch (err) {
+      setSimulationError(
+        err instanceof ApiRequestError
+          ? err.message
+          : "Não foi possível confirmar o pagamento agora.",
+      );
+    } finally {
+      setSimulationLoading(false);
+    }
   }
 
   const totalPages = data?.totalPages ?? 1;
@@ -230,16 +296,16 @@ export default function PurchasesPage() {
       {/* ===== Detalhe da compra ===== */}
       {detailOpen && (
         <div className="overlay">
-          <div className="modal purchase-detail-modal rise" role="dialog" aria-modal="true" aria-labelledby="purchase-detail-title">
+          <div className={simulationLoading ? "modal purchase-detail-modal rise is-action-busy" : "modal purchase-detail-modal rise"} role="dialog" aria-modal="true" aria-labelledby="purchase-detail-title" aria-busy={simulationLoading}>
             {detailLoading || !selected ? (
               <div className="purchases-loading">
                 <span className="spinner big" aria-label="Carregando" />
               </div>
             ) : (
               <>
-                <button className="modal-close detail-close" type="button" onClick={closeDetail} aria-label="Fechar">×</button>
+                <button className="modal-close detail-close" type="button" onClick={closeDetail} aria-label="Fechar" disabled={simulationLoading}>×</button>
                 <div className="purchase-detail-layout">
-                  <section className="detail-showcase" data-platform={selected.platform}>
+                  <section className="detail-showcase" data-platform={selected.platform} data-status={STATUS_VIEW[selected.status].tone}>
                     <span className="platform-detail" data-platform={selected.platform}>
                       <i><img src={getPlatform(selected.platform).logo} alt="" /></i> {getPlatform(selected.platform).name}
                     </span>
@@ -251,19 +317,19 @@ export default function PurchasesPage() {
                         code={showCode ? selected.code ?? undefined : "•••• •••• ••••"}
                       />
                     </div>
-                    <span className="detail-status"><i /> {selected.status === "approved" ? "Card disponível para resgate" : "Aguardando confirmação do pagamento"}</span>
+                    <span className={`detail-status status-${STATUS_VIEW[selected.status].tone}`}><i /> {STATUS_VIEW[selected.status].detail}</span>
                     <p>Comprado em {formatDate(selected.createdAt)}</p>
                   </section>
 
                   <section className="detail-content">
                     <span className="eyebrow"><Icon name="sparkles" /> Detalhes da compra</span>
                     <h2 className="modal-title" id="purchase-detail-title">Seu {getPlatform(selected.platform).shortName} Card</h2>
-                    <p className="detail-intro">{selected.status === "approved" ? "O crédito está pronto. Revele o código somente quando estiver no ambiente oficial da plataforma." : "O código será emitido somente após a confirmação segura do provedor de pagamento."}</p>
+                    <p className="detail-intro">{selected.status === "approved" ? "O crédito está pronto. Revele o código somente quando estiver no ambiente oficial da plataforma." : selected.status === "pending" ? "O código será emitido somente após a confirmação segura do provedor de pagamento." : "Este pedido não possui código disponível para resgate."}</p>
 
                     <dl className="purchase-facts">
                       <div><dt>Valor</dt><dd>R$ {selected.amount},00</dd></div>
                       <div><dt>Pagamento</dt><dd><Method value={selected.paymentMethod} /></dd></div>
-                      <div><dt>Status</dt><dd className="status-approved"><Icon name="check" /> {selected.status === "approved" ? "Aprovado" : "Pendente"}</dd></div>
+                      <div><dt>Status</dt><dd className={`status-badge status-${STATUS_VIEW[selected.status].tone}`}><i /> {STATUS_VIEW[selected.status].label}</dd></div>
                     </dl>
 
                     {selected.code && <div className="code-vault">
@@ -294,12 +360,17 @@ export default function PurchasesPage() {
 
                     <div className="detail-footer">
                       <span>Pedido <code>#{selected.id.slice(0, 8).toUpperCase()}</code></span>
-                      {selected.code && <button type="button" className="btn-primary detail-copy" onClick={handleCopy}>
+                      {selected.status === "pending" && <button type="button" className="btn-secondary simulate-payment-button" onClick={handleSimulateApproval} disabled={simulationLoading}>
+                        <Icon name="zap" /> Simular confirmação
+                      </button>}
+                      {selected.code && <button type="button" className="btn-primary detail-copy" onClick={handleCopy} disabled={simulationLoading}>
                         <Icon name={copied ? "check" : "copy"} /> {copied ? "Código copiado" : "Copiar código"}
                       </button>}
                     </div>
+                    {simulationError && <p className="purchase-simulation-error shake" role="alert">{simulationError}</p>}
                   </section>
                 </div>
+                <ActionBlocker active={simulationLoading} label="Confirmando pagamento…" />
               </>
             )}
           </div>

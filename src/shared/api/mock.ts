@@ -151,13 +151,28 @@ export async function mockPurchaseCard(
     amount,
     platform,
     paymentMethod,
-    status: "approved",
-    code: codeFor(purchases.length + 19),
+    status: "pending",
+    code: null,
     paymentReference: `mock_pay_${crypto.randomUUID()}`,
     createdAt: new Date().toISOString(),
   };
   localStorage.setItem(PURCHASES_KEY, JSON.stringify([purchase, ...purchases]));
   return purchase;
+}
+
+export async function mockSimulatePurchaseApproval(id: string): Promise<PurchaseDetail> {
+  await wait(620);
+  const purchases = readPurchases();
+  const index = purchases.findIndex((item) => item.id === id);
+  if (index < 0) throw new Error("Compra não encontrada.");
+  const updated: PurchaseDetail = {
+    ...purchases[index],
+    status: "approved",
+    code: purchases[index].code ?? codeFor(index + purchases.length + 31),
+  };
+  purchases[index] = updated;
+  localStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases));
+  return updated;
 }
 
 export async function mockGetPurchases(
