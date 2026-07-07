@@ -65,8 +65,6 @@ export default function ProfilePage() {
 
   const memberDays = me ? Math.max(1, Math.floor((Date.now() - new Date(me.createdAt).getTime()) / 86400000) + 1) : 0;
 
-  useEscapeKey({ enabled: passwordOpen, mode: "block" });
-
   return (
     <div className="dashboard">
       <div className="bg-grid" aria-hidden="true" />
@@ -198,6 +196,8 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [success, setSuccess] = useState(false);
   const matches = newPassword === confirmPassword;
   const canSubmit = currentPassword.length > 0 && passwordIsValid(newPassword) && matches && currentPassword !== newPassword;
+
+  useEscapeKey({ enabled: true, onEscape: () => !loading && onClose() });
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();

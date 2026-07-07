@@ -505,7 +505,13 @@ export default function PurchasesPage() {
 
       {/* ===== Detalhe da compra ===== */}
       {detailOpen && (
-        <div className="overlay">
+        <div
+          className="overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !simulationLoading) closeDetail();
+          }}
+        >
           <div className={simulationLoading ? "modal purchase-detail-modal rise is-action-busy" : "modal purchase-detail-modal rise"} role="dialog" aria-modal="true" aria-labelledby="purchase-detail-title" aria-busy={simulationLoading}>
             {detailLoading || !selected ? (
               <div className="purchases-loading">

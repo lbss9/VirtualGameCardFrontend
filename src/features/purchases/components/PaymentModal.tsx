@@ -56,6 +56,7 @@ export default function PaymentModal({ amount, platform, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
   const [pixSeconds, setPixSeconds] = useState(10 * 60);
+  const [paying, setPaying] = useState(false);
   const payingRef = useRef(false);
   const pixCode = `PIX-DEMO-VIRTUALGAMECARD-${platform.toUpperCase()}-R${amount}-NAO-PAGAVEL`;
 
@@ -71,6 +72,7 @@ export default function PaymentModal({ amount, platform, onClose }: Props) {
   async function handlePay() {
     if (payingRef.current || step === "processing") return;
     payingRef.current = true;
+    setPaying(true);
     setError(null);
     setStep("processing");
     const start = Date.now();
@@ -92,6 +94,7 @@ export default function PaymentModal({ amount, platform, onClose }: Props) {
       setStep(method);
     } finally {
       payingRef.current = false;
+      setPaying(false);
     }
   }
 
@@ -110,9 +113,16 @@ export default function PaymentModal({ amount, platform, onClose }: Props) {
 
   const minutes = String(Math.floor(pixSeconds / 60)).padStart(2, "0");
   const seconds = String(pixSeconds % 60).padStart(2, "0");
+  const canDismissByBackdrop = step !== "processing" && !paying;
 
   return (
-    <div className="overlay payment-overlay">
+    <div
+      className="overlay payment-overlay"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && canDismissByBackdrop) onClose();
+      }}
+    >
       <div className={`modal payment-modal payment-${step} rise`} role="dialog" aria-modal="true" aria-labelledby="payment-title">
         {step === "method" && (
           <>
