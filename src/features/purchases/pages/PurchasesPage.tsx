@@ -17,6 +17,7 @@ import { addNotification } from "../../../shared/notifications/storage";
 
 const PAGE_SIZES = [20, 50, 100];
 const PENDING_PURCHASE_POLL_MS = 5000;
+const PENDING_PURCHASE_ESTIMATE_SECONDS = 30;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", {
@@ -64,6 +65,25 @@ function Method({ value }: { value: string }) {
   return <span className="method-pill"><Icon name={isPix ? "pix" : "credit-card"} /> {METHOD_LABEL[value] ?? value}</span>;
 }
 
+function formatSeconds(seconds: number): string {
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const remainingSeconds = (seconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${remainingSeconds}`;
+}
+
+function getPendingEstimate(createdAt: string, now: number) {
+  const availableAt = new Date(createdAt).getTime() + PENDING_PURCHASE_ESTIMATE_SECONDS * 1000;
+  const secondsLeft = Math.max(0, Math.ceil((availableAt - now) / 1000));
+  const elapsed = PENDING_PURCHASE_ESTIMATE_SECONDS - secondsLeft;
+  const progress = Math.min(100, Math.max(0, (elapsed / PENDING_PURCHASE_ESTIMATE_SECONDS) * 100));
+
+  return {
+    secondsLeft,
+    progress,
+    done: secondsLeft === 0,
+  };
+}
+
 const REDEEM_STEPS: Record<string, [string, string, string]> = {
   steam: ["Abra a Steam e acesse sua conta", "Entre em Jogos › Ativar um produto", "Cole o código e confirme a ativação"],
   playstation: ["Abra a PlayStation Store", "Selecione Resgatar código no menu", "Digite o código e confirme o crédito"],
@@ -73,7 +93,60 @@ const REDEEM_STEPS: Record<string, [string, string, string]> = {
   roblox: ["Acesse roblox.com/redeem", "Entre na sua conta Roblox", "Insira o código e clique em Resgatar"],
 };
 
-function PurchaseTile({ purchase, onOpen, index }: { purchase: Purchase; onOpen: () => void; index: number }) {
+function PendingReleaseMeter({
+  purchase,
+  now,
+  compact = false,
+}: {
+  purchase: Purchase;
+  now: number;
+  compact?: boolean;
+}) {
+  const estimate = getPendingEstimate(purchase.createdAt, now);
+
+  return (
+    <span className={compact ? "pending-release-meter compact" : "pending-release-meter"}>
+      <span>
+        <Icon name="zap" />
+        {estimate.done
+          ? "Finalizando confirmação..."
+          : `Disponível em ${formatSeconds(estimate.secondsLeft)}`}
+      </span>
+      <i aria-hidden="true"><b style={{ width: `${estimate.progress}%` }} /></i>
+    </span>
+  );
+}
+
+function PendingAvailabilityNotice({
+  purchase,
+  now,
+}: {
+  purchase: Purchase;
+  now: number;
+}) {
+  const estimate = getPendingEstimate(purchase.createdAt, now);
+
+  return (
+    <div className="pending-availability-notice" role="status" aria-live="polite">
+      <span><Icon name="zap" /></span>
+      <div>
+        <strong>
+          {estimate.done
+            ? "Estamos finalizando a confirmação"
+            : `Aguarde ${formatSeconds(estimate.secondsLeft)} para liberar o gift card`}
+        </strong>
+        <p>
+          {estimate.done
+            ? "O tempo estimado terminou. Assim que o provedor confirmar, este modal atualiza sozinho."
+            : "A confirmação costuma levar até 30 segundos. Pode deixar esta tela aberta: o status muda em tempo real."}
+        </p>
+        <i aria-hidden="true"><b style={{ width: `${estimate.progress}%` }} /></i>
+      </div>
+    </div>
+  );
+}
+
+function PurchaseTile({ purchase, onOpen, index, now }: { purchase: Purchase; onOpen: () => void; index: number; now: number }) {
   const platform = getPlatform(purchase.platform);
   const status = STATUS_VIEW[purchase.status];
   return (
@@ -87,6 +160,7 @@ function PurchaseTile({ purchase, onOpen, index }: { purchase: Purchase; onOpen:
             <em className={`purchase-status-pill status-${status.tone}`}><span /> {status.short}</em>
           </span>
           <span className="purchase-art-value"><small>R$</small>{purchase.amount}</span>
+          {purchase.status === "pending" && <PendingReleaseMeter purchase={purchase} now={now} compact />}
           <span className="purchase-art-bottom">
             <span>•••• •••• ••••</span>
             <b>VIRTUAL CARD</b>
@@ -141,6 +215,7 @@ export default function PurchasesPage() {
   const [simulationLoading, setSimulationLoading] = useState(false);
   const [simulationError, setSimulationError] = useState<string | null>(null);
   const [approvalToast, setApprovalToast] = useState<Purchase | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const detailRequest = useRef(0);
   const pollingInFlight = useRef(false);
   const notifiedApprovals = useRef(new Set<string>());
@@ -163,6 +238,17 @@ export default function PurchasesPage() {
   useEffect(() => {
     load(page, pageSize);
   }, [page, pageSize, load]);
+
+  const hasPendingPurchase =
+    (data?.items.some((item) => item.status === "pending") ?? false)
+    || selected?.status === "pending";
+
+  useEffect(() => {
+    if (!hasPendingPurchase) return;
+
+    const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [hasPendingPurchase]);
 
   const notifyApproval = useCallback((purchase: Purchase) => {
     if (notifiedApprovals.current.has(purchase.id)) return;
@@ -191,7 +277,11 @@ export default function PurchasesPage() {
 
   useEffect(() => {
     const pendingPurchases = data?.items.filter((item) => item.status === "pending") ?? [];
-    if (pendingPurchases.length === 0) return;
+    const pendingIds = new Set(pendingPurchases.map((purchase) => purchase.id));
+    const watchedPurchases = selected?.status === "pending" && !pendingIds.has(selected.id)
+      ? [...pendingPurchases, selected]
+      : pendingPurchases;
+    if (watchedPurchases.length === 0) return;
 
     let active = true;
 
@@ -201,7 +291,7 @@ export default function PurchasesPage() {
 
       try {
         const details = await Promise.all(
-          pendingPurchases.map(async (purchase) => {
+          watchedPurchases.map(async (purchase) => {
             try {
               return await getPurchase(purchase.id);
             } catch {
@@ -249,7 +339,7 @@ export default function PurchasesPage() {
       active = false;
       window.clearInterval(intervalId);
     };
-  }, [data?.items, notifyApproval]);
+  }, [data?.items, notifyApproval, selected]);
 
   function changePageSize(size: number) {
     setPageSize(size);
@@ -383,7 +473,7 @@ export default function PurchasesPage() {
           <>
             <ul className="purchase-gallery">
               {data?.items.map((p, i) => (
-                <PurchaseTile key={p.id} purchase={p} index={i} onOpen={() => openDetail(p.id)} />
+                <PurchaseTile key={p.id} purchase={p} index={i} now={now} onOpen={() => openDetail(p.id)} />
               ))}
             </ul>
 
@@ -445,6 +535,8 @@ export default function PurchasesPage() {
                     <span className="eyebrow"><Icon name="sparkles" /> Detalhes da compra</span>
                     <h2 className="modal-title" id="purchase-detail-title">Seu {getPlatform(selected.platform).shortName} Card</h2>
                     <p className="detail-intro">{selected.status === "approved" ? "O crédito está pronto. Revele o código somente quando estiver no ambiente oficial da plataforma." : selected.status === "pending" ? "O código será emitido somente após a confirmação segura do provedor de pagamento." : "Este pedido não possui código disponível para resgate."}</p>
+
+                    {selected.status === "pending" && <PendingAvailabilityNotice purchase={selected} now={now} />}
 
                     <dl className="purchase-facts">
                       <div><dt>Valor</dt><dd>R$ {selected.amount},00</dd></div>

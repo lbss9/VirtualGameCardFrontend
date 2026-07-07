@@ -315,6 +315,55 @@ body {
   opacity: 0.65;
 }
 
+.pending-release-meter {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+  width: min(230px, 100%);
+  color: #ffe2a3;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.pending-release-meter > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-shadow: 0 0 12px rgba(255, 211, 107, 0.32);
+}
+
+.pending-release-meter .icon {
+  width: 13px;
+  height: 13px;
+  filter: drop-shadow(0 0 7px rgba(255, 211, 107, 0.48));
+}
+
+.pending-release-meter > i,
+.pending-availability-notice i {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.pending-release-meter > i b,
+.pending-availability-notice i b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffd36b, #a779d8, #68ddbd);
+  box-shadow: 0 0 14px rgba(255, 211, 107, 0.34);
+  transition: width 0.55s ease;
+}
+
+.pending-release-meter.compact {
+  width: min(210px, 74%);
+  margin-top: -8px;
+}
+
 .purchase-art-bottom {
   justify-content: space-between;
   color: rgba(255, 255, 255, 0.55);
@@ -483,6 +532,50 @@ body {
   color: var(--text-dim);
   font-size: 0.82rem;
   line-height: 1.55;
+}
+
+.pending-availability-notice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 13px;
+  margin: -4px 0 18px;
+  padding: 14px;
+  border: 1px solid rgba(255, 211, 107, 0.22);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 211, 107, 0.15), transparent 38%),
+    rgba(255, 211, 107, 0.075);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.pending-availability-notice > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 14px;
+  color: #211a2c;
+  background: linear-gradient(135deg, #ffd36b, #f5b9c9);
+  box-shadow: 0 11px 22px rgba(255, 211, 107, 0.2);
+}
+
+.pending-availability-notice .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.pending-availability-notice strong {
+  display: block;
+  color: #ffe2a3;
+  font-family: var(--font-title);
+  font-size: 0.88rem;
+}
+
+.pending-availability-notice p {
+  margin: 4px 0 10px;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  line-height: 1.48;
 }
 
 .purchase-facts {
