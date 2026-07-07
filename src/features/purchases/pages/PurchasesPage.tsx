@@ -13,8 +13,10 @@ import { getPlatform } from "../../../shared/catalog/platforms";
 import { useEscapeKey } from "../../../shared/hooks/useEscapeKey";
 import { useBodyScrollLock } from "../../../shared/hooks/useBodyScrollLock";
 import ActionBlocker from "../../../shared/components/ActionBlocker";
+import { addNotification } from "../../../shared/notifications/storage";
 
 const PAGE_SIZES = [20, 50, 100];
+const PENDING_PURCHASE_POLL_MS = 5000;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", {
@@ -103,6 +105,27 @@ function PurchaseTile({ purchase, onOpen, index }: { purchase: Purchase; onOpen:
   );
 }
 
+function PurchaseApprovalToast({
+  purchase,
+  onClose,
+}: {
+  purchase: Purchase;
+  onClose: () => void;
+}) {
+  const platform = getPlatform(purchase.platform);
+
+  return (
+    <aside className="purchase-approval-toast rise" role="status" aria-live="polite">
+      <button type="button" onClick={onClose} aria-label="Fechar notificação">×</button>
+      <span className="toast-icon"><Icon name="sparkles" /></span>
+      <div>
+        <strong>{platform.shortName} Card aprovado!</strong>
+        <p>Seu card de R$ {purchase.amount},00 já está disponível em Minhas Compras.</p>
+      </div>
+    </aside>
+  );
+}
+
 export default function PurchasesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -117,7 +140,11 @@ export default function PurchasesPage() {
   const [copied, setCopied] = useState(false);
   const [simulationLoading, setSimulationLoading] = useState(false);
   const [simulationError, setSimulationError] = useState<string | null>(null);
+  const [approvalToast, setApprovalToast] = useState<Purchase | null>(null);
   const detailRequest = useRef(0);
+  const pollingInFlight = useRef(false);
+  const notifiedApprovals = useRef(new Set<string>());
+  const approvalToastTimer = useRef<number | null>(null);
 
   const load = useCallback(async (p: number, ps: number) => {
     setLoading(true);
@@ -136,6 +163,93 @@ export default function PurchasesPage() {
   useEffect(() => {
     load(page, pageSize);
   }, [page, pageSize, load]);
+
+  const notifyApproval = useCallback((purchase: Purchase) => {
+    if (notifiedApprovals.current.has(purchase.id)) return;
+
+    notifiedApprovals.current.add(purchase.id);
+    const platform = getPlatform(purchase.platform);
+
+    addNotification({
+      kind: "purchase",
+      title: `${platform.shortName} Card aprovado`,
+      message: `Seu card de R$ ${purchase.amount},00 já está disponível para resgate.`,
+    });
+
+    setApprovalToast(purchase);
+    if (approvalToastTimer.current) window.clearTimeout(approvalToastTimer.current);
+    approvalToastTimer.current = window.setTimeout(() => {
+      setApprovalToast((current) => current?.id === purchase.id ? null : current);
+    }, 6500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (approvalToastTimer.current) window.clearTimeout(approvalToastTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const pendingPurchases = data?.items.filter((item) => item.status === "pending") ?? [];
+    if (pendingPurchases.length === 0) return;
+
+    let active = true;
+
+    async function refreshPendingPurchases() {
+      if (!active || pollingInFlight.current || document.visibilityState === "hidden") return;
+      pollingInFlight.current = true;
+
+      try {
+        const details = await Promise.all(
+          pendingPurchases.map(async (purchase) => {
+            try {
+              return await getPurchase(purchase.id);
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        if (!active) return;
+
+        const approvedPurchases = details.filter(
+          (purchase): purchase is PurchaseDetail => purchase?.status === "approved",
+        );
+
+        if (approvedPurchases.length === 0) return;
+
+        setData((current) => {
+          if (!current) return current;
+
+          return {
+            ...current,
+            items: current.items.map((item) => {
+              const approved = approvedPurchases.find((purchase) => purchase.id === item.id);
+              return approved ? { ...item, status: approved.status } : item;
+            }),
+          };
+        });
+
+        setSelected((current) => {
+          if (!current) return current;
+          const approved = approvedPurchases.find((purchase) => purchase.id === current.id);
+          return approved ? approved : current;
+        });
+
+        approvedPurchases.forEach(notifyApproval);
+      } finally {
+        pollingInFlight.current = false;
+      }
+    }
+
+    const intervalId = window.setInterval(refreshPendingPurchases, PENDING_PURCHASE_POLL_MS);
+    void refreshPendingPurchases();
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [data?.items, notifyApproval]);
 
   function changePageSize(size: number) {
     setPageSize(size);
@@ -220,6 +334,12 @@ export default function PurchasesPage() {
       <div className="orb orb-2" aria-hidden="true" />
 
       <AppHeader />
+      {approvalToast && (
+        <PurchaseApprovalToast
+          purchase={approvalToast}
+          onClose={() => setApprovalToast(null)}
+        />
+      )}
 
       <main className="purchases">
         <div className="purchases-head rise">

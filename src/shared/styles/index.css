@@ -4369,6 +4369,103 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
 .notification-empty .icon { width: 26px; height: 26px; }
 .notification-empty p { margin: 0; font-size: 0.76rem; }
 
+.purchase-approval-toast {
+  position: fixed;
+  z-index: 95;
+  top: 86px;
+  right: max(22px, calc((100vw - 1120px) / 2));
+  display: grid;
+  width: min(390px, calc(100vw - 28px));
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 44px 15px 15px;
+  border: 1px solid rgba(116, 220, 191, 0.42);
+  border-radius: 22px;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(178, 245, 225, 0.56), transparent 36%),
+    linear-gradient(135deg, rgba(255, 253, 255, 0.98), rgba(234, 249, 244, 0.96));
+  box-shadow:
+    0 22px 55px rgba(65, 159, 132, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  animation: approval-toast-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.purchase-approval-toast::before {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(105, 229, 191, 0.62), rgba(181, 137, 229, 0.38));
+  content: "";
+  filter: blur(12px);
+  opacity: 0.42;
+}
+
+.purchase-approval-toast > button {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  color: var(--text-dim);
+  background: rgba(112, 88, 145, 0.08);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.purchase-approval-toast > button:hover {
+  color: var(--text);
+  transform: rotate(8deg) scale(1.04);
+}
+
+.toast-icon {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  place-items: center;
+  border-radius: 15px;
+  color: #fff;
+  background: linear-gradient(135deg, #7ce1c3, #a67bdc);
+  box-shadow: 0 10px 26px rgba(108, 193, 169, 0.32);
+}
+
+.toast-icon .icon {
+  width: 19px;
+  height: 19px;
+}
+
+.purchase-approval-toast strong {
+  display: block;
+  font-family: var(--font-title);
+  font-size: 0.9rem;
+}
+
+.purchase-approval-toast p {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+@keyframes approval-toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(18px, -12px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
 /* ===== Ajuda e suporte ===== */
 
 .help-page {
@@ -4585,6 +4682,20 @@ html[data-theme="dark"] .notification-item:hover,
 html[data-theme="dark"] .notification-item.unread { background: rgba(174, 139, 221, 0.11); }
 html[data-theme="dark"] .notification-panel > a { background: rgba(20, 16, 29, 0.35); }
 html[data-theme="dark"] .notification-kind { background: rgba(121, 92, 158, 0.28); }
+
+html[data-theme="dark"] .purchase-approval-toast {
+  border-color: rgba(121, 232, 198, 0.35);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(102, 222, 188, 0.18), transparent 36%),
+    linear-gradient(135deg, rgba(36, 30, 50, 0.98), rgba(28, 50, 48, 0.95));
+  box-shadow:
+    0 22px 55px rgba(9, 5, 16, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme="dark"] .purchase-approval-toast > button {
+  background: rgba(255, 255, 255, 0.08);
+}
 
 html[data-theme="dark"] .faq-card,
 html[data-theme="dark"] .support-card {
