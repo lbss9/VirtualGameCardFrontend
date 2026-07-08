@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getPurchase, getPurchases, simulatePurchaseApproval, wakePaymentProcessor } from "../api/purchases";
+import { getPurchase, getPurchases, simulatePurchaseApproval } from "../api/purchases";
 import {
   ApiRequestError,
   type PagedResult,
@@ -219,7 +219,6 @@ export default function PurchasesPage() {
   const detailRequest = useRef(0);
   const pollingInFlight = useRef(false);
   const notifiedApprovals = useRef(new Set<string>());
-  const processorWakeups = useRef(new Set<string>());
   const approvalToastTimer = useRef<number | null>(null);
 
   const load = useCallback(async (p: number, ps: number) => {
@@ -283,14 +282,6 @@ export default function PurchasesPage() {
       ? [...pendingPurchases, selected]
       : pendingPurchases;
     if (watchedPurchases.length === 0) return;
-
-    const hasPurchaseWaitingForWakeup = watchedPurchases.some((purchase) => {
-      if (processorWakeups.current.has(purchase.id)) return false;
-      processorWakeups.current.add(purchase.id);
-      return true;
-    });
-
-    if (hasPurchaseWaitingForWakeup) wakePaymentProcessor();
 
     let active = true;
 
